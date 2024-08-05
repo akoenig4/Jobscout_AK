@@ -16,9 +16,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Now you can import flask_application
 from flask_application import app as flask_app
 
-flask_app.config['GOOGLE_ID'] = '197014094036-rbrpc7ot7nmkkj401809qbb1nheakeis.apps.googleusercontent.com'
-flask_app.config['GOOGLE_SECRET'] = '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'
-flask_app.config['GOOGLE_REDIRECT_URI'] = 'http://localhost:5000/callback'
+flask_app.config['GOOGLE_ID'] = os.getenv('GOOGLE_ID')
+flask_app.config['GOOGLE_SECRET'] = os.getenv('GOOGLE_SECRET')
+flask_app.config['GOOGLE_REDIRECT_URI'] = os.getenv('GOOGLE_REDIRECT_URI')
 
 app = FastAPI()
 master = Master(18)

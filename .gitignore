@@ -5,6 +5,7 @@
 venv/
 js-venv2/
 js-3
+js-4
 env
 .env
 __pycache__/*
@@ -18,3 +19,5 @@ __pycache__/
 # Ignore specific bytecode files in the task_sched_dbs directory
 task_sched_dbs/__pycache__/
 task_sched_dbs/*.pyc
+task-sched-dbs
+task-sched-dbs/*

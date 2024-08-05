@@ -1,21 +1,19 @@
 import datetime
-
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import RedirectResponse
-import requests
+import os
 import threading
 import subprocess
-import uvicorn
+import requests
 import logging
-import notifs
-import refresh
-import os
+import uvicorn
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from task_sched_dbs.Master import Master
 from task_sched_dbs.Tables import Notifs, Task, Refresh
 from flask_application import app as flask_app
 from scraper import Scraper
-from datetime import datetime
+import notifs
+import refresh
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -28,29 +26,35 @@ redirect_uri = 'http://ec2-3-21-189-151.us-east-2.compute.amazonaws.com:8080/cal
 
 # Initialize FastAPI app
 app = FastAPI()
+
+# Initialize Master scheduler with a task limit of 10
 master = Master(10)
+
+# Initialize the Scraper and start LinkedIn scraping
 scraper = Scraper()
 scraper.linkedin_scraper()
 
+# Create a new refresh task and add it to the master scheduler
 new_task = Refresh(
     task_id=0,
     interval="PT6H",
     retries=3,
-    created=int(datetime.now().timestamp()),
+    created=int(datetime.datetime.now().timestamp()),
     last_refresh=0,
     type="refresh"
 )
 master.add_task(new_task)
 
-
 # Start the master scheduler in the background
 master_thread = threading.Thread(target=master.run, daemon=True)
 master_thread.start()
 
+# Pydantic model for updating tasks
 class TaskUpdateRequest(BaseModel):
     task_id: int
     new_task: Task
 
+# Endpoint to delete a task by its ID
 @app.delete("/delete_task/{task_id}")
 def delete_task(task_id: int):
     result = master.delete_task(task_id)
@@ -58,6 +62,7 @@ def delete_task(task_id: int):
         raise HTTPException(status_code=500, detail=result["message"])
     return result
 
+# Endpoint to add a new job search task
 @app.post("/add_search/")
 def add_job_search(job_search: Notifs):
     try:
@@ -66,6 +71,7 @@ def add_job_search(job_search: Notifs):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Endpoint to perform an instant job search
 @app.get("/instant_search/")
 def scrape_jobs(role: str, location: str, company: str):
     try:
@@ -75,6 +81,7 @@ def scrape_jobs(role: str, location: str, company: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Endpoint to initiate Google OAuth login
 @app.get("/login")
 def login(request: Request):
     google_oauth_url = (
@@ -88,6 +95,7 @@ def login(request: Request):
     logging.info(f"Redirecting to Google OAuth URL: {google_oauth_url}")
     return RedirectResponse(google_oauth_url)
 
+# Endpoint to handle OAuth callback and exchange code for tokens
 @app.get("/callback")
 def callback(code: str, request: Request):
     logging.info(f"Received callback with code: {code}")
@@ -122,31 +130,39 @@ def callback(code: str, request: Request):
         logging.error(f"Error during token exchange: {e}")
         return {"error": str(e)}
 
+# Endpoint to check if the user is logged in
 @app.get("/is_logged_in")
 def is_logged_in():
     # Implement a check for login status
     # For now, just return a dummy response
     return {"status": "success", "name": "John Doe"}
 
+# Function to run FastAPI app
 def run_fastapi():
     logging.info('Starting FastAPI on port 8000')
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
 
+# Function to run Flask app
 def run_flask():
     logging.info('Starting Flask app on port 8080')
     flask_app.run(host="0.0.0.0", port=8080)
 
+# Function to run logged-in Streamlit app
 def run_logged_in_app():
     subprocess.Popen(['streamlit', 'run', 'logged_in_app.py', '--server.port', '8502'])
 
+# Function to run main Streamlit app
 def run_streamlit():
     subprocess.Popen(['streamlit', 'run', 'app.py', '--server.port', '8501'])
 
+# Function to start SQS listener
 def start_sqs_listener(process_message_function, thread_name):
     while True:
         process_message_function()
 
+# Main entry point
 if __name__ == "__main__":
+    # Start threads for FastAPI, Flask, and Streamlit apps
     fastapi_thread = threading.Thread(target=run_fastapi)
     flask_thread = threading.Thread(target=run_flask)
     streamlit_thread = threading.Thread(target=run_streamlit)
@@ -156,16 +172,18 @@ if __name__ == "__main__":
     refresh_listener_thread = threading.Thread(target=start_sqs_listener, args=(refresh.process_refresh_message, 'refresh_listener'))
     notifs_listener_thread = threading.Thread(target=start_sqs_listener, args=(notifs.process_notifs_message, 'notifs_listener'))
 
+    # Start all threads
     fastapi_thread.start()
     flask_thread.start()
     streamlit_thread.start()
     logged_in_app_thread.start()
-    #refresh_listener_thread.start()
+    refresh_listener_thread.start()
     notifs_listener_thread.start()
 
+    # Join all threads
     fastapi_thread.join()
     flask_thread.join()
     streamlit_thread.join()
     logged_in_app_thread.join()
-    #refresh_listener_thread.join()
+    refresh_listener_thread.join()
     notifs_listener_thread.join()

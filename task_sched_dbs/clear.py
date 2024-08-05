@@ -4,5 +4,7 @@ import time
 
 delete_aws_resources()
 delete_tables()
+
+#Sleep to allow for deletion of resources
 print("\033[93mloading... 20 seconds remaining... \033[0m")
 time.sleep(20)
